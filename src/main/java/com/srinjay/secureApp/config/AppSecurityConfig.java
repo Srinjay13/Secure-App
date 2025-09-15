@@ -3,17 +3,16 @@ package com.srinjay.secureApp.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -27,18 +26,26 @@ public class AppSecurityConfig {
 	
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		http.csrf(customizer -> customizer.disable());
-		//This is used to disable the CSRF Token for our page
-		http.authorizeHttpRequests(request -> request.anyRequest().authenticated());
+//		http.csrf(customizer -> customizer.disable());
+		//This is used to disable the CSRF Token for our page (request.requestMatchers("register","login").permitAll() this means that for this two urls, it will not require authentication)
+//		http.authorizeHttpRequests(request -> request.requestMatchers("register","login").permitAll().anyRequest().authenticated());
 		//This will authorize every requests that are coming in but still we will not get the login form until we do the below step
-		http.formLogin(Customizer.withDefaults());
+//		http.formLogin(Customizer.withDefaults());
 		//This will bring the sign in form whenever any request is hit but if we try using Postman it will still fail to get the data, because it will return the login form, to make this work for postman, we will need to add this below line
-		http.httpBasic(Customizer.withDefaults());
+//		http.httpBasic(Customizer.withDefaults());
 		//To handle the CSRF, we can make the HTTP Stateless that is everytime we make any request then it will fetch a new Session ID and this will perfectly for Postman but not for web login, because after login the session ID will change and we will keep on getting the same page and to avoid this we will need to comment out the form login portion and then it will work for both
-		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-		
-		
-		return http.build();
+//		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+//		return http.build();
+		http.csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/register", "/login").permitAll()
+            .anyRequest().authenticated()
+        )
+        .httpBasic(Customizer.withDefaults()) // keep if you still want basic auth
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+    
+    return http.build();
+
 	}
 	
 	/* But we need to use our own Authentication Provider by overriding the normal method instead of using this 
@@ -61,10 +68,17 @@ public class AppSecurityConfig {
 	@Bean
 	public AuthenticationProvider authenticationProvider() {
 		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-		provider.setPasswordEncoder(NoOpPasswordEncoder.getInstance());
-		//This is basicaly not using any password encoder as of now
+		provider.setPasswordEncoder(new BCryptPasswordEncoder(12));
+		//We are using B crypt password encoder to validate our users everytime
 		provider.setUserDetailsService(userDetailsService);
 		//We will need to create our own class named something that will implement UserDetailsService and inject its object in this
 		return provider;
+	}
+	
+	
+	//For JWT token, we would need to grab a hold on the Authentication Manager and pass this on
+	@Bean
+	public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+		return config.getAuthenticationManager();
 	}
 }
